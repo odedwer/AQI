@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>איכות אוויר - גן שפירא</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charSet="utf-8"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="stylesheet.css">
+</head>
+<body>
+<div id="graph" class="container"></div>
+</body>
+<script src="functions.js"></script>
+<script>
+    async function main_fun() {
+        let current_aqi;
+        let past_aqi;
+        let now = new Date(Date.now());
+
+        let year = now.getFullYear();
+        let month = now.getMonth();
+        let day = now.getDay();
+
+        let times = [];
+        let hours = [];
+        let aqis = [];
+        let aqi_descs = [];
+
+        await fetch("https://airquality.googleapis.com/v1/currentConditions:lookup?key=AIzaSyDPWXrprF702Bkp9akw4ZC50mmgMp_fJVU", {
+            method: "POST",
+            body: JSON.stringify({
+                "location": {
+                    "latitude": 32.049581830970126,
+                    "longitude": 34.77984194856583
+                },
+                "languageCode": "he",
+                "extraComputations": ["LOCAL_AQI"]
+            }),
+            headers: {
+                "Content-type": "application/json; charset=UTF-8"
+            }
+        }).then(function (resp) {
+            resp.json().then((d) => current_aqi = d);
+        }).catch(function (error) {
+            console.log(error);
+        });
+
+        await fetch("https://airquality.googleapis.com/v1/history:lookup?key=AIzaSyDPWXrprF702Bkp9akw4ZC50mmgMp_fJVU", {
+            method: "POST",
+            body: JSON.stringify({
+                "location": {
+                    "latitude": 32.049581830970126,
+                    "longitude": 34.77984194856583
+                },
+                "languageCode": "he",
+                "extraComputations": ["LOCAL_AQI"],
+                hours: 24
+            }),
+            headers: {
+                "Content-type": "application/json; charset=UTF-8"
+            }
+        }).then(function (resp) {
+            resp.json().then((d) => past_aqi = d);
+        }).catch(function (error) {
+            console.log(error);
+        });
+        let min_date = new Date(year, month, day, 8);
+        let max_date = new Date(year, month, day, 16);
+        setTimeout(() => {
+            for (let i = past_aqi['hoursInfo'].length - 1; i >= 0; i--) {
+                let rec = past_aqi['hoursInfo'][i];
+                let date = new Date(rec['dateTime']);
+                if ((date >= min_date) && (date <= max_date)) {
+                    times.push(date);
+                    hours.push(date.getHours().toString().padStart(2, '0') + ":00");
+                    aqis.push(rec['indexes'][1]['aqi']);
+                    aqi_descs.push(rec['indexes'][1]['category']);
+                }
+            }
+            times.push(new Date(current_aqi['dateTime']))
+            hours.push((new Date(current_aqi['dateTime'])).getHours().toString().padStart(2, '0') + ":00")
+            aqis.push(current_aqi['indexes'][1]['aqi']);
+            aqi_descs.push(current_aqi['indexes'][1]['category']);
+            TESTER = document.getElementById('graph');
+            let data = [{
+                x: times,
+                y: aqis,
+                text: aqi_descs,
+                customdata: hours,
+                type: 'scatter',
+                mode: 'lines+markers',
+                hovertemplate: '<b>דירוג אוויר</b>: %{y}<br>' + '<b>סיווג</b>: %{text}<br>' + '<b>שעה</b>: %{customdata}'
+            }]
+            Plotly.newPlot(TESTER, data, {
+                margin: {t: 0}
+            });
+        }, 200);
+        return {current_aqi, past_aqi, times, aqis, aqi_descs};
+    }
+
+    let res;
+    main_fun().then((d) => res = d);
+</script>
+</html>
